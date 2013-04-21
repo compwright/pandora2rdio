@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html>
+	<title>Pandora scraper</title>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+	<link href="bootstrap/css/bootstrap.min.css" rel="stylesheet" media="screen">
+<head>
+</head>
+<body>
+
+    <div class="navbar navbar-inverse navbar-fixed-top">
+      <div class="navbar-inner">
+        <div class="container">
+          <h1 class="brand">Pandora2Rdio playlist import</h1>
+        </div>
+      </div>
+    </div>
+
+	<div class="container" style="padding-top:100px;">
+
+		<h2>1. Import your Pandora Stations</h2>
+		<form id="import_pandora" action="get_pandora_stations.php" method="get">
+			<label>Pandora Username</label>
+			<input type="text" name="pandora_username" placeholder="Example: jonathon67" value="jonathon67">
+			<label>Pandora <code>at</code> cookie value</label>
+			<input type="text" name="pandora_at_cookie" placeholder="wkhNXwHA+Rg08Jp3TitIKj5GRth8AXqJtL2LPnS1QYuw%3D" value="wkhNXwHA+Rg08Jp3TitIKj5GRth8AXqJtL2LPnS1QYuw%3D"><br>
+			<button type="submit" class="btn btn-primary">Import Pandora Stations</button>
+		</form>
+
+		<div id="step_2" style="display:none;">
+			<h2>2. Select the Stations to import</h2>
+			<form id="pandora_playlists" class="checkbox"></form>
+			<p><button id="export_playlists" class="btn btn-primary">Export Playlists to Rdio</button></p>
+		</div>
+		<p class="muted">
+			Powered by
+			<a href="http://rdio.com" target="_blank"><img src="../rdio/assets/rdio-logo.png" alt="Rdio" style="height:12px;vertical-align:baseline;"></a>&reg;
+		</p>
+	</div>
+
+	<script src="http://code.jquery.com/jquery.js"></script>
+	<script src="bootstrap/js/bootstrap.min.js"></script>
+	<script src="https://www.rdio.com/api/api.js?helper=http://localhost.dev/pandora2rdio/helper.html&client_id=BsacerOHMRO9zdUXTZ_9-Q"></script>
+	<script>
+
+			function strip_tags (input, allowed)
+			{
+				allowed = (((allowed || "") + "").toLowerCase().match(/<[a-z][a-z0-9]*>/g) || []).join(''); // making sure the allowed arg is a string containing only tags in lowercase (<a><b><c>)
+				var tags = /<\/?([a-z][a-z0-9]*)\b[^>]*>/gi,
+				    commentsAndPhpTags = /<!--[\s\S]*?-->|<\?(?:php)?[\s\S]*?\?>/gi;
+				return input.replace(commentsAndPhpTags, '').replace(tags, function ($0, $1)
+				{
+					return allowed.indexOf('<' + $1.toLowerCase() + '>') > -1 ? $0 : '';
+				});
+			}
+
+			function export_playlist()
+			{
+				$('#pandora_playlists :checked').each(function(i, el)
+				{
+					var title = $(el).attr('title');
+					var url = $(el).attr('value');
+					console.log(title, url);
+					R.request({
+						method : 'search',
+						content : {
+							query : title,
+							types : 'Track'
+						},
+						success : function(response)
+						{
+							console.log("success: ", response);
+
+							tracks = [];
+							for (var i in response.result.results)
+							{
+								tracks.push(response.result.results[i].key);
+							}
+
+							R.request({
+								method : 'createPlaylist',
+								content : {
+									name : title,
+									description : title,
+									tracks : tracks
+								},
+								success : function(response)
+								{
+									console.log("success: ", response);
+									alert('Playlist created!');
+									window.open('http://www.rdio.com' + response.result.url);
+								},
+								error : function(response)
+								{
+									console.log("error: " + response.message);
+								}
+							});
+						},
+						error : function(response)
+						{
+							console.log("error: " + response.message);
+						}
+					});
+
+/*
+					$.get('get_pandora_station_likes.php?pandora_station_url=' + url, function(data)
+					{
+						$('.thumb_up_list li', data).each(function(i, el)
+						{
+							var track_name = strip_tags($('h3', el).html());
+							console.log(track_name);
+							R.request({
+								method : 'search',
+								content : {
+									query : title,
+									types : 'Track'
+								},
+								success : function(response)
+								{
+									console.log("success: ", response);
+								},
+								error : function(response)
+								{
+									console.log("error: " + response.message);
+								}
+							});
+						});
+
+					});
+*/
+				});
+			}
+
+		$(function()
+		{
+			$('#import_pandora').submit(function(e)
+			{
+				e.preventDefault();
+				$.get(e.currentTarget.action, $(e.target).serialize(), function(data)
+				{
+					$('#step_2').show();
+					$.each(data, function(i, el)
+					{
+						$('#pandora_playlists').append('<label><input name="playlists[]" type="checkbox" value="' + i + '" title="' + el + '"> ' + el + '</label>');
+					});
+				});
+			});
+
+			$('#export_playlists').click(function()
+			{
+				if (R.authenticated())
+				{
+					export_playlist();
+				}
+				else
+				{
+					R.authenticate(function()
+					{
+						export_playlist();
+					});
+				}
+			});
+		});
+	</script>
+</body>
+</html>
